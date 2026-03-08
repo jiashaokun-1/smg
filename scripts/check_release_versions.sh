@@ -58,19 +58,19 @@ escape_version() {
 # Use "-" for the main gateway crate (no workspace dep entry).
 # ---------------------------------------------------------------------------
 CRATES=(
-    "openai-protocol|protocols|openai-protocol"
-    "reasoning-parser|reasoning_parser|reasoning-parser"
-    "tool-parser|tool_parser|tool-parser"
-    "wfaas|workflow|wfaas"
-    "llm-tokenizer|tokenizer|llm-tokenizer"
-    "smg-auth|auth|smg-auth"
-    "smg-mcp|mcp|smg-mcp"
-    "kv-index|kv_index|kv-index"
-    "data-connector|data_connector|smg-data-connector"
-    "llm-multimodal|multimodal|llm-multimodal"
-    "smg-wasm|wasm|smg-wasm"
-    "smg-mesh|mesh|smg-mesh"
-    "smg-grpc-client|grpc_client|smg-grpc-client"
+    "openai-protocol|crates/protocols|openai-protocol"
+    "reasoning-parser|crates/reasoning_parser|reasoning-parser"
+    "tool-parser|crates/tool_parser|tool-parser"
+    "wfaas|crates/workflow|wfaas"
+    "llm-tokenizer|crates/tokenizer|llm-tokenizer"
+    "smg-auth|crates/auth|smg-auth"
+    "smg-mcp|crates/mcp|smg-mcp"
+    "kv-index|crates/kv_index|kv-index"
+    "data-connector|crates/data_connector|smg-data-connector"
+    "llm-multimodal|crates/multimodal|llm-multimodal"
+    "smg-wasm|crates/wasm|smg-wasm"
+    "smg-mesh|crates/mesh|smg-mesh"
+    "smg-grpc-client|crates/grpc_client|smg-grpc-client"
     "smg|model_gateway|-"
 )
 
@@ -80,7 +80,7 @@ CRATES=(
 # version_file is relative to REPO_ROOT.
 # ---------------------------------------------------------------------------
 PYTHON_PACKAGES=(
-    "smg-grpc-proto|grpc_client/python|grpc_client/python/smg_grpc_proto/__init__.py"
+    "smg-grpc-proto|crates/grpc_client/python|crates/grpc_client/python/smg_grpc_proto/__init__.py"
 )
 
 # ---------------------------------------------------------------------------
@@ -120,11 +120,19 @@ get_crate_version() {
 }
 
 # Extract version at a specific git ref (returns empty string if crate missing)
+# Falls back to pre-crates-move path (e.g., crates/auth → auth) for older tags.
 get_crate_version_at_ref() {
     local path="$1"
     local ref="$2"
     local content
-    content=$(git show "$ref:$path/Cargo.toml" 2>/dev/null) || return 0
+    content=$(git show "$ref:$path/Cargo.toml" 2>/dev/null) || {
+        # Fallback: try legacy path before crates/ directory move
+        if [[ "$path" == crates/* ]]; then
+            content=$(git show "$ref:${path#crates/}/Cargo.toml" 2>/dev/null) || return 0
+        else
+            return 0
+        fi
+    }
     if echo "$content" | grep -qE 'version\.workspace\s*=\s*true|version\s*=\s*\{\s*workspace\s*=\s*true'; then
         echo -e "${RED}ERROR: $path/Cargo.toml at $ref uses workspace versioning; this script expects explicit version strings.${NC}" >&2
         exit 1
@@ -233,11 +241,19 @@ get_python_version() {
 }
 
 # Extract __version__ from a Python file at a specific git ref
+# Falls back to pre-crates-move path (e.g., crates/X/... → X/...) for older tags.
 get_python_version_at_ref() {
     local file="$1"
     local ref="$2"
     local content
-    content=$(git show "$ref:$file" 2>/dev/null) || return 0
+    content=$(git show "$ref:$file" 2>/dev/null) || {
+        # Fallback: try legacy path before crates/ directory move
+        if [[ "$file" == crates/* ]]; then
+            content=$(git show "$ref:${file#crates/}" 2>/dev/null) || return 0
+        else
+            return 0
+        fi
+    }
     echo "$content" | grep '__version__' | sed 's/.*"\(.*\)".*/\1/'
 }
 
