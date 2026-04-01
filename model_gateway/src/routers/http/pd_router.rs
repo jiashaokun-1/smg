@@ -364,10 +364,10 @@ impl PDRouter {
                                 Some(text) => text.len().try_into().unwrap_or(0),
                                 None => 0,
                             };
-                            let prefill_rank = dp_rank_policy
-                                .select_dp_rank(prefill.as_ref(), estimated_cost);
-                            let decode_rank = dp_rank_policy
-                                .select_dp_rank(decode.as_ref(), estimated_cost);
+                            let prefill_rank =
+                                dp_rank_policy.select_dp_rank(prefill.as_ref(), estimated_cost);
+                            let decode_rank =
+                                dp_rank_policy.select_dp_rank(decode.as_ref(), estimated_cost);
                             if let (Some(p_rank), Some(d_rank)) = (prefill_rank, decode_rank) {
                                 debug!("prefill_rank is {}, decode_rank {}", p_rank, d_rank);
                                 Self::inject_dp_rank_to_json(

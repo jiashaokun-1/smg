@@ -24,11 +24,7 @@ impl MinimumTokensPolicy {
 impl DPRankLoadPolicy for MinimumTokensPolicy {
     fn select_dp_rank(&self, worker: &dyn Worker, estimated_cost: isize) -> Option<isize> {
         if let Some(worker_load) = self.worker_load_manager.as_ref() {
-            let lowest_tokens_dp_rank = worker_load.get_lowest_dp_load(worker);
-            if let Some(dp_rank) = lowest_tokens_dp_rank {
-                worker_load.load_increment(worker, dp_rank, estimated_cost);
-            }
-            return lowest_tokens_dp_rank;
+            return worker_load.select_and_increment_lowest_dp_load(worker, estimated_cost);
         }
         None
     }

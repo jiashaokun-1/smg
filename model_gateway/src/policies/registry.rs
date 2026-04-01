@@ -323,7 +323,7 @@ impl PolicyRegistry {
         // the policy should only be set once at startup
         let _ = self.prefill_policy.set(policy);
     }
-    
+
     pub fn set_dp_rank_policy(&self, policy: Arc<dyn DPRankLoadPolicy>) {
         // OnceLock::set returns Err if already set, which we ignore since
         // the policy should only be set once at startup

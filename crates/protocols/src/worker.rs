@@ -942,10 +942,7 @@ impl WorkerLoadResponse {
     pub fn dp_rank_loads(&self) -> HashMap<isize, isize> {
         let mut map = HashMap::new();
         for snapshot in &self.loads {
-            map.insert(
-                snapshot.dp_rank as isize,
-                snapshot.num_used_tokens as isize,
-            );
+            map.insert(snapshot.dp_rank as isize, snapshot.num_used_tokens as isize);
         }
         map
     }
