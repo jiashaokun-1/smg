@@ -22,37 +22,28 @@ impl WorkerLoadManager {
 
     pub fn update_dp_loads(&self, loads: &HashMap<String, HashMap<isize, isize>>) {
         debug!("WorkerLoadManager update_dp_loads map:{:?}", loads);
-        if let Ok(mut cached) = self.dp_cached_loads.write() {
-            cached.extend(loads.iter().map(|(k, v)| (k.clone(), v.clone())));
-        }
+        let mut cached = self
+            .dp_cached_loads
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        cached.extend(loads.iter().map(|(k, v)| (k.clone(), v.clone())));
     }
 
-    pub fn get_lowest_dp_load(&self, worker: &dyn Worker) -> Option<isize> {
-        if let Ok(cached_loads) = self.dp_cached_loads.read() {
-            if let Some(loads) = cached_loads.get(worker.url()) {
-                return loads
-                    .iter()
-                    .min_by_key(|&(_, load)| load)
-                    .map(|(&rand_id, _)| rand_id);
-            }
+    pub fn select_and_increment_lowest_dp_load(
+        &self,
+        worker: &dyn Worker,
+        increment: isize,
+    ) -> Option<isize> {
+        let mut cached = self
+            .dp_cached_loads
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let loads = cached.get_mut(worker.url())?;
+        let (&dp_rank, _) = loads.iter().min_by_key(|&(rank, load)| (*load, *rank))?;
+        if let Some(v) = loads.get_mut(&dp_rank) {
+            *v += increment;
         }
-        None
-    }
-
-    pub fn load_increment(&self, worker: &dyn Worker, dp_rank: isize, increment: isize) {
-        // Add an increment to the load of dp group,
-        // to prevent all request from being scheduled to the same DP group during the interval between two load reports.
-        if let Ok(mut cached_loads) = self.dp_cached_loads.write() {
-            debug!(
-                "WorkerLoadManager load_increment map:{:?}, increment:{}",
-                cached_loads, increment
-            );
-            if let Some(loads) = cached_loads.get_mut(worker.url()) {
-                if let Some(dp_load) = loads.get_mut(&dp_rank) {
-                    *dp_load += increment;
-                }
-            }
-        }
+        Some(dp_rank)
     }
 }
 
@@ -96,53 +87,37 @@ mod dp_load_manager_tests {
     }
 
     #[test]
-    fn test_get_lowest_dp_load() {
-        let worker1 = BasicWorkerBuilder::new("http://worker1:8080")
+    fn test_select_and_increment_lowest_dp_load_multiple() {
+        let worker = BasicWorkerBuilder::new("http://worker:8080")
             .worker_type(WorkerType::Regular)
-            .api_key("test_api_key2")
+            .api_key("test_key")
             .build();
 
         let manager = WorkerLoadManager::new();
         let mut loads = HashMap::new();
-        // insert worker1_load
-        let mut worker1_load = HashMap::new();
-        worker1_load.insert(0, 2);
-        worker1_load.insert(1, 1);
-        worker1_load.insert(3, 3);
-        loads.insert(worker1.url().to_string(), worker1_load);
+        let mut worker_load = HashMap::new();
+        worker_load.insert(0, 10);
+        worker_load.insert(1, 3);
+        worker_load.insert(2, 7);
+        loads.insert(worker.url().to_string(), worker_load);
         manager.update_dp_loads(&loads);
 
-        // Verify that the worker1 with the lowest load is dp_rank = 1
-        assert_eq!(manager.get_lowest_dp_load(&worker1), Some(1));
+        let selected = manager.select_and_increment_lowest_dp_load(&worker, 4);
+
+        assert_eq!(selected, Some(1));
+        let cached = manager.dp_cached_loads.read().unwrap();
+        assert_eq!(*cached.get(worker.url()).unwrap().get(&1).unwrap(), 3 + 4);
     }
 
     #[test]
-    fn test_load_increment() {
-        let worker2 = BasicWorkerBuilder::new("http://worker2:8080")
+    fn test_select_and_increment_lowest_dp_load_none_worker() {
+        let worker = BasicWorkerBuilder::new("http://nonexist:8080")
             .worker_type(WorkerType::Regular)
-            .api_key("test_api_key2")
+            .api_key("test")
             .build();
 
         let manager = WorkerLoadManager::new();
-        manager.load_increment(&worker2, 0, 5);
-        let cached = manager.dp_cached_loads.read().expect("Rwlock read1 failed");
-        assert!(cached.get(worker2.url()).is_none());
-        drop(cached);
-
-        // insert worker2.load
-        let mut worker2_load = HashMap::new();
-        worker2_load.insert(0, 2);
-        let mut loads = HashMap::new();
-        loads.insert(worker2.url().to_string(), worker2_load);
-        manager.update_dp_loads(&loads);
-
-        // load increment
-        manager.load_increment(&worker2, 0, 5);
-        let cached = manager.dp_cached_loads.read().expect("Rwlock read2 failed");
-        let worker2_cache = cached
-            .get(worker2.url())
-            .expect("worker2 not found in cache");
-        // 2 + 5 = 7
-        assert_eq!(worker2_cache.get(&0), Some(&7));
+        let result = manager.select_and_increment_lowest_dp_load(&worker, 1);
+        assert_eq!(result, None);
     }
 }

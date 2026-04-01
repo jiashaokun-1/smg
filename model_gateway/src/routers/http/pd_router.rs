@@ -360,14 +360,14 @@ impl PDRouter {
 
                         let dp_rank_policy_opt = self.policy_registry.get_dp_rank_policy();
                         if let Some(dp_rank_policy) = dp_rank_policy_opt.as_ref() {
-                            let text_length: isize = match context.request_text.as_ref() {
+                            let estimated_cost: isize = match context.request_text.as_ref() {
                                 Some(text) => text.len().try_into().unwrap_or(0),
                                 None => 0,
                             };
                             let prefill_rank = dp_rank_policy
-                                .select_dp_rank(prefill.as_ref(), text_length);
+                                .select_dp_rank(prefill.as_ref(), estimated_cost);
                             let decode_rank = dp_rank_policy
-                                .select_dp_rank(decode.as_ref(), text_length);
+                                .select_dp_rank(decode.as_ref(), estimated_cost);
                             if let (Some(p_rank), Some(d_rank)) = (prefill_rank, decode_rank) {
                                 debug!("prefill_rank is {}, decode_rank {}", p_rank, d_rank);
                                 Self::inject_dp_rank_to_json(

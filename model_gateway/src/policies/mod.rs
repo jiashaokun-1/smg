@@ -92,7 +92,7 @@ pub trait LoadBalancingPolicy: Send + Sync + Debug {
 }
 
 pub trait DPRankLoadPolicy: Send + Sync + Debug {
-    fn select_dp_rank(&self, worker: &dyn Worker, text_str: isize) -> Option<isize>;
+    fn select_dp_rank(&self, worker: &dyn Worker, estimated_cost: isize) -> Option<isize>;
 }
 
 /// Configuration for cache-aware policy
